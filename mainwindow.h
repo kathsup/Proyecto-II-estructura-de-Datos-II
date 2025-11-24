@@ -2,6 +2,10 @@
 #define MAINWINDOW_H
 
 #include <QMainWindow>
+#include <QMap>
+#include "diskmanager.h"
+
+using namespace std;
 
 QT_BEGIN_NAMESPACE
 namespace Ui {
@@ -21,9 +25,13 @@ public:
 private:
     Ui::MainWindow *ui;
     QString currentPath;
+    DiskManager *diskManager;
 
     void processCommand(const QString &cmd);
     bool applyCd(QString arg);
+
+    //metodo para parsear: sirve para dividir el comando que ponga
+    map<QString, QString> extraerParametros(QString Linea);
 };
 
 #endif // MAINWINDOW_H
