@@ -119,6 +119,30 @@ void MainWindow::processCommand(const QString &cmd)
         }else {
             ui->base->appendPlainText("No se pudo crear el disco");
         }
+    }
+
+    else if(command == "rmdisk"){
+        map <QString, QString> parametros = extraerParametros(trimmedCmd);
+        // VALIDAR -path
+        QString path = parametros["-path"];
+        if (path.isEmpty()) {
+            ui->base->appendPlainText("Error: -path es obligatorio");
+            ui->base->appendPlainText(currentPath + "> ");
+            return;
+        }
+
+        bool eliminar = diskManager->eliminarDisco(path);
+
+        if(!eliminar){
+            ui->base->appendPlainText("No se pudo borrar el disco: "+path);
+            return;
+        }else{
+            ui->base->appendPlainText("Se borro exitosamente");
+            return;
+        }
+
+
+
     }else if (command == "cd"){
         if (partes.size() > 1){
             applyCd(partes[1]);

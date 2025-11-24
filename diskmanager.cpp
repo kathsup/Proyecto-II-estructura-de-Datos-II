@@ -65,3 +65,23 @@ bool DiskManager::crearArchivoVacio(QString path, long long tamanio_bytes){
     archivo.close();
     return true;
 }
+
+
+bool DiskManager::eliminarDisco(QString path){
+
+    QFile archivo(path);
+    QFile archivoRaid(path+"_Raid");
+
+    if(!archivo.exists()){
+        return false;
+    }else{
+        archivo.remove();
+        archivoRaid.remove();
+        return true;
+    }
+
+
+}
+
+
+
