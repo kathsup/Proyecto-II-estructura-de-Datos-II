@@ -26,7 +26,8 @@ MainWindow::MainWindow(QWidget *parent)
     QString header = "-------------------------------------------------- Sistema de archivos -------------------------------------------------\n";
     header += "                                              Katherine Carvallo - 22441130\n";
     header += "------------------------------------------------------------------------------------------------------------------------\n\n";
-    header += currentPath + "> ";
+    header += "Por favor escriba algún comando:\n";
+    header += ">> ";
 
     ui->base->setPlainText(header);
     ui->base->installEventFilter(this);
@@ -51,8 +52,36 @@ void MainWindow::processCommand(const QString &cmd)
 
     if (trimmedCmd.isEmpty())
     {
-        ui->base->appendPlainText(currentPath + "> ");
+        ui->base->appendPlainText(currentPath + ">> ");
         return;
+    }
+
+    // verificación de si desea eliminar
+    if (!pendingDiskToDelete.isEmpty()) {
+        QString respuesta = trimmedCmd.toLower();
+
+        if (respuesta == "s" || respuesta == "si" || respuesta == "y" || respuesta == "yes") {
+            bool eliminar = diskManager->eliminarDisco(pendingDiskToDelete);
+
+            if(!eliminar){
+                ui->base->appendPlainText("No se pudo borrar el disco: " + pendingDiskToDelete);
+            }else{
+                ui->base->appendPlainText("Se borro exitosamente");
+            }
+
+            pendingDiskToDelete = "";  // Limpiar la variable
+            ui->base->appendPlainText(currentPath + ">> ");
+            return;
+        } else if (respuesta == "n" || respuesta == "no") {
+            ui->base->appendPlainText("Operación cancelada.");
+            pendingDiskToDelete = "";
+            ui->base->appendPlainText(currentPath + ">> ");
+            return;
+        } else {
+            ui->base->appendPlainText("Respuesta no válida. Escriba S o N.");
+            ui->base->appendPlainText(currentPath + ">> ");
+            return;  // Vuelve a pedir sin limpiar pendingDiskToDelete
+        }
     }
 
     //obtener el comando - la primera palabra
@@ -67,7 +96,7 @@ void MainWindow::processCommand(const QString &cmd)
         // VALIDAR -size
         if (parametros["-size"].isEmpty()) {
             ui->base->appendPlainText("Error: -size es obligatorio");
-            ui->base->appendPlainText(currentPath + "> ");
+            ui->base->appendPlainText(currentPath + ">> ");
             return;
         }
 
@@ -75,36 +104,36 @@ void MainWindow::processCommand(const QString &cmd)
         int size = parametros["-size"].toInt(&ok);
         if (!ok || size <= 0) {
             ui->base->appendPlainText("Error: -size debe ser un número mayor que 0");
-            ui->base->appendPlainText(currentPath + "> ");
+            ui->base->appendPlainText(currentPath + ">> ");
             return;
         }
 
         // VALIDAR -path
         if (parametros["-path"].isEmpty()) {
             ui->base->appendPlainText("Error: -path es obligatorio");
-            ui->base->appendPlainText(currentPath + "> ");
+            ui->base->appendPlainText(currentPath + ">> ");
             return;
         }
 
-        // VALIDAR -unit (si existe)
+        // VALIDAR -unit si existe
         QString unit = parametros["-unit"];
         if (unit.isEmpty()) {
-            unit = "M";  // Por defecto Megabytes
+            unit = "M";
         }
         if (unit != "K" && unit != "M" && unit != "k" && unit != "m") {
             ui->base->appendPlainText("Error: -unit debe ser K o M");
-            ui->base->appendPlainText(currentPath + "> ");
+            ui->base->appendPlainText(currentPath + ">> ");
             return;
         }
 
-        // VALIDAR -fit (si existe)
+        // VALIDAR -fit si existe
         QString fit = parametros["-fit"];
         if (fit.isEmpty()) {
-            fit = "FF";  // Por defecto First Fit
+            fit = "FF";  // el valor si no pone nada
         }
         if (fit != "BF" && fit != "FF" && fit != "WF") {
             ui->base->appendPlainText("Error: -fit debe ser BF, FF o WF");
-            ui->base->appendPlainText(currentPath + "> ");
+            ui->base->appendPlainText(currentPath + ">> ");
             return;
         }
 
@@ -127,23 +156,100 @@ void MainWindow::processCommand(const QString &cmd)
         QString path = parametros["-path"];
         if (path.isEmpty()) {
             ui->base->appendPlainText("Error: -path es obligatorio");
-            ui->base->appendPlainText(currentPath + "> ");
+            ui->base->appendPlainText(currentPath + ">> ");
             return;
         }
 
-        bool eliminar = diskManager->eliminarDisco(path);
+        ui->base->appendPlainText("¿Está seguro que desea eliminar el disco: " + path + "? (S/N)");
+        pendingDiskToDelete = path;
+        ui->base->appendPlainText(currentPath + ">> ");
 
-        if(!eliminar){
-            ui->base->appendPlainText("No se pudo borrar el disco: "+path);
-            return;
-        }else{
-            ui->base->appendPlainText("Se borro exitosamente");
+
+
+    }   else if (command == "fdisk") {
+        map<QString, QString> parametros = extraerParametros(trimmedCmd);
+
+        // VALIDAR -path - obli
+        if (parametros["-path"].isEmpty()) {
+            ui->base->appendPlainText("Error: -path es obligatorio");
+            ui->base->appendPlainText(currentPath + ">> ");
             return;
         }
 
+        // VALIDAR -name obli
+        if (parametros["-name"].isEmpty()) {
+            ui->base->appendPlainText("Error: -name es obligatorio");
+            ui->base->appendPlainText(currentPath + ">> ");
+            return;
+        }
 
+        // elige que operación de fdisk va a hacer
+        if (!parametros["-delete"].isEmpty()) {
+            ui->base->appendPlainText("ME FALTA");
+        }
+        else if (!parametros["-add"].isEmpty()) {
+            ui->base->appendPlainText("Me falta");
+        }
+        else if (!parametros["-size"].isEmpty()) {
+            // CREAR PARTICIÓN
 
-    }else if (command == "cd"){
+            // Validar -size
+            bool ok;
+            int size = parametros["-size"].toInt(&ok);
+            if (!ok || size <= 0) {
+                ui->base->appendPlainText("Error: -size debe ser un número mayor que 0");
+                ui->base->appendPlainText(currentPath + ">> ");
+                return;
+            }
+
+            // Validar -unit
+            QString unit = parametros["-unit"];
+            if (unit.isEmpty()) {
+                unit = "k";
+            }
+            if (unit != "k" && unit != "m" && unit != "b") {
+                ui->base->appendPlainText("Error: -unit debe ser B, K o M");
+                ui->base->appendPlainText(currentPath + ">> ");
+                return;
+            }
+
+            // Validar -type
+            QString type = parametros["-type"];
+            if (type.isEmpty()) {
+                type = "p";
+            }
+            if (type != "p" && type != "e" && type != "l") {
+                ui->base->appendPlainText("Error: -type debe ser P, E o L");
+                ui->base->appendPlainText(currentPath + ">> ");
+                return;
+            }
+
+            // Validar -fit
+            QString fit = parametros["-fit"];
+            if (fit.isEmpty()) {
+                fit = "wf";
+            }
+            if (fit != "bf" && fit != "ff" && fit != "wf") {
+                ui->base->appendPlainText("Error: -fit debe ser BF, FF o WF");
+                ui->base->appendPlainText(currentPath + ">> ");
+                return;
+            }
+
+            // LLAMAR a fdisk
+            bool exito = diskManager->fdisk(parametros);
+
+            if(exito){
+                ui->base->appendPlainText("Partición creada exitosamente: " + parametros["-name"]);
+            } else {
+                ui->base->appendPlainText("No se pudo crear la partición");
+            }
+        }
+        else {
+            ui->base->appendPlainText("Error: Debe especificar -size, -delete o -add");
+        }
+    }
+
+    else if (command == "cd"){
         if (partes.size() > 1){
             applyCd(partes[1]);
         }
@@ -155,7 +261,7 @@ void MainWindow::processCommand(const QString &cmd)
         QString header = "-------------------------------------------------- Sistema de archivos -------------------------------------------------\n";
         header += "                                              Katherine Carvallo - 22441130\n";
         header += "------------------------------------------------------------------------------------------------------------------------\n\n";
-        header += currentPath + "> ";
+        header += currentPath + ">> ";
         ui->base->setPlainText(header);
         return;
     }else {
@@ -189,7 +295,7 @@ bool MainWindow::applyCd(QString arg)
     if (arg == "..")
     {
 
-        if (newPath == "C:/")
+        if (newPath == "/")
             return true;
 
 
@@ -202,7 +308,7 @@ bool MainWindow::applyCd(QString arg)
         }
         else
         {
-            newPath = "C:/";
+            newPath = "/";
         }
 
         currentPath = newPath;
@@ -218,7 +324,7 @@ bool MainWindow::applyCd(QString arg)
         {
             if (p == "..")
             {
-                if (newPath != "C:/")
+                if (newPath != "/")
                 {
                     newPath.chop(1);
                     int idx = newPath.lastIndexOf('/');
@@ -296,9 +402,13 @@ bool MainWindow::eventFilter(QObject *obj, QEvent *event)
              QStringList dividido = parte.split("=");
              if(dividido.size() == 2){
                  //si tiene dos pedazos sacamos clave y valor y lo agregamos al mapa
-                 QString clave = dividido[0].trimmed();
+                 /*QString clave = dividido[0].trimmed();
                  QString valor = dividido[1].trimmed();
-                 resultado[clave] =  valor;
+                 resultado[clave] =  valor;*/
+                 QString clave = dividido[0].trimmed().toLower();
+                 QString valor = dividido[1].trimmed().toLower();
+                 resultado[clave] = valor;
+
              }
          }
      }
@@ -306,54 +416,5 @@ bool MainWindow::eventFilter(QObject *obj, QEvent *event)
  }
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
- /*
-        //obtener valores
-        QString size = parametros["-size"];
-        QString unit = parametros["-unit"];
-        QString path = parametros["-path"];
-        QString fit = parametros["-fit"];
-
-        //TEMPORAL SOLO PARA VER SI FUNCIONA
-        if (size.isEmpty()) {
-            ui->base->appendPlainText("Error: -size es obligatorio");
-        } else if (path.isEmpty()) {
-            ui->base->appendPlainText("Error: -path es obligatorio");
-        } else {
-            ui->base->appendPlainText("ENTENDÍ:");
-            ui->base->appendPlainText("  Size: " + size);
-            ui->base->appendPlainText("  Unit: " + unit + " (default: M)");
-            ui->base->appendPlainText("  Path: " + path);
-            ui->base->appendPlainText("  Fit: " + fit + " (default: FF)");
-        }*/
 
 

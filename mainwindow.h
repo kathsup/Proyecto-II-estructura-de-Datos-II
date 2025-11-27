@@ -32,6 +32,7 @@ private:
 
     //metodo para parsear: sirve para dividir el comando que ponga
     map<QString, QString> extraerParametros(QString Linea);
+    QString pendingDiskToDelete;
 };
 
 #endif // MAINWINDOW_H
