@@ -56,6 +56,35 @@ void MainWindow::processCommand(const QString &cmd)
         return;
     }
 
+    //verificar eliminar la partición
+    if (!pendingPartitionDelete.empty()) {
+        QString respuesta = trimmedCmd.toLower();
+
+        if (respuesta == "s" || respuesta == "si" || respuesta == "y" || respuesta == "yes") {
+            bool exito = diskManager->fdisk(pendingPartitionDelete);
+
+            if(exito){
+                ui->base->appendPlainText("Partición eliminada exitosamente: " +
+                                          pendingPartitionDelete["-name"]);
+            }else{
+                ui->base->appendPlainText("No se pudo eliminar la partición");
+            }
+
+            pendingPartitionDelete.clear();
+            ui->base->appendPlainText(currentPath + ">> ");
+            return;
+        } else if (respuesta == "n" || respuesta == "no") {
+            ui->base->appendPlainText("Operación cancelada.");
+            pendingPartitionDelete.clear();
+            ui->base->appendPlainText(currentPath + ">> ");
+            return;
+        } else {
+            ui->base->appendPlainText("Respuesta no válida. Escriba S o N.");
+            ui->base->appendPlainText(currentPath + ">> ");
+            return;
+        }
+    }
+
     // verificación de si desea eliminar
     if (!pendingDiskToDelete.isEmpty()) {
         QString respuesta = trimmedCmd.toLower();
@@ -127,11 +156,11 @@ void MainWindow::processCommand(const QString &cmd)
         }
 
         // VALIDAR -fit si existe
-        QString fit = parametros["-fit"];
+        QString fit = parametros["-fit"].toLower();
         if (fit.isEmpty()) {
-            fit = "FF";  // el valor si no pone nada
+            fit = "ff";  // el valor si no pone nada
         }
-        if (fit != "BF" && fit != "FF" && fit != "WF") {
+        if (fit != "bf" && fit != "ff" && fit != "wf") {
             ui->base->appendPlainText("Error: -fit debe ser BF, FF o WF");
             ui->base->appendPlainText(currentPath + ">> ");
             return;
@@ -185,12 +214,61 @@ void MainWindow::processCommand(const QString &cmd)
 
         // elige que operación de fdisk va a hacer
         if (!parametros["-delete"].isEmpty()) {
-            ui->base->appendPlainText("ME FALTA");
+            QString deleteType = parametros["-delete"].toLower();
+
+            if (deleteType != "fast" && deleteType != "full") {
+                ui->base->appendPlainText("Error: -delete debe ser Fast o Full");
+                ui->base->appendPlainText(currentPath + ">> ");
+                return;
+            }
+
+            // Mostrar confirmación
+            ui->base->appendPlainText("¿Está seguro que desea eliminar la partición '" +
+                                      parametros["-name"] + "'? (S/N)");
+
+            // Guardar en una variable temporal para confirmar después
+            // (Necesitarás agregar variables miembro en mainwindow.h)
+            pendingPartitionDelete = parametros;
+            ui->base->appendPlainText(currentPath + ">> ");
+            return;
         }
+        // ===== OPCIÓN 2: ADD (modificar tamaño) =====
         else if (!parametros["-add"].isEmpty()) {
-            ui->base->appendPlainText("Me falta");
-        }
-        else if (!parametros["-size"].isEmpty()) {
+            bool ok;
+            int add = parametros["-add"].toInt(&ok);
+
+            if (!ok || add == 0) {
+                ui->base->appendPlainText("Error: -add debe ser un número diferente de 0");
+                ui->base->appendPlainText(currentPath + ">> ");
+                return;
+            }
+
+            // Validar -unit (opcional)
+            QString unit = parametros["-unit"];
+            if (unit.isEmpty()) {
+                unit = "k";
+            }
+            unit = unit.toLower();
+            if (unit != "k" && unit != "m" && unit != "b") {
+                ui->base->appendPlainText("Error: -unit debe ser B, K o M");
+                ui->base->appendPlainText(currentPath + ">> ");
+                return;
+            }
+
+            // Ejecutar modificación
+            bool exito = diskManager->fdisk(parametros);
+
+            if(exito){
+                if(add > 0){
+                    ui->base->appendPlainText("Se agregó espacio a la partición: " + parametros["-name"]);
+                }else{
+                    ui->base->appendPlainText("Se quitó espacio de la partición: " + parametros["-name"]);
+                }
+            } else {
+                ui->base->appendPlainText("No se pudo modificar el tamaño de la partición");
+
+            }
+        }else if (!parametros["-size"].isEmpty()) {
             // CREAR PARTICIÓN
 
             // Validar -size
@@ -247,8 +325,58 @@ void MainWindow::processCommand(const QString &cmd)
         else {
             ui->base->appendPlainText("Error: Debe especificar -size, -delete o -add");
         }
-    }
+    }else if (command == "mount") {
+        map<QString, QString> parametros = extraerParametros(trimmedCmd);
 
+        // VALIDAR -path (obligatorio)
+        if (parametros["-path"].isEmpty()) {
+            ui->base->appendPlainText("Error: -path es obligatorio");
+            ui->base->appendPlainText(currentPath + ">> ");
+            return;
+        }
+
+        // VALIDAR -name (obligatorio)
+        if (parametros["-name"].isEmpty()) {
+            ui->base->appendPlainText("Error: -name es obligatorio");
+            ui->base->appendPlainText(currentPath + ">> ");
+            return;
+        }
+
+        QString path = parametros["-path"];
+        QString name = parametros["-name"];
+
+        // EJECUTAR mount
+        bool exito = diskManager->mount(path, name);
+
+        if (exito) {
+            ui->base->appendPlainText("Partición montada exitosamente");
+            QString tabla = diskManager->obtenerTablaParticionesMontadas();
+            ui->base->appendPlainText(tabla);
+        } else {
+            ui->base->appendPlainText("No se pudo montar la partición");
+        }
+    }
+    else if (command == "unmount") {
+        map<QString, QString> parametros = extraerParametros(trimmedCmd);
+
+        // VALIDAR -id (obligatorio)
+        if (parametros["-id"].isEmpty()) {
+            ui->base->appendPlainText("Error: -id es obligatorio");
+            ui->base->appendPlainText(currentPath + ">> ");
+            return;
+        }
+
+        QString id = parametros["-id"];
+
+        // EJECUTAR unmount
+        bool exito = diskManager->unmount(id);
+
+        if (exito) {
+            ui->base->appendPlainText("Partición desmontada exitosamente: " + id);
+        } else {
+            ui->base->appendPlainText("Error: No existe una partición con ID: " + id);
+        }
+    }
     else if (command == "cd"){
         if (partes.size() > 1){
             applyCd(partes[1]);
@@ -382,7 +510,7 @@ bool MainWindow::eventFilter(QObject *obj, QEvent *event)
     return QMainWindow::eventFilter(obj, event);
 }
 
- map<QString, QString> MainWindow:: extraerParametros(QString linea){
+/*map<QString, QString> MainWindow:: extraerParametros(QString linea){
      map <QString, QString> resultado; //guardaremos lo de las parejas
 
      linea.replace("–", "-");
@@ -402,9 +530,9 @@ bool MainWindow::eventFilter(QObject *obj, QEvent *event)
              QStringList dividido = parte.split("=");
              if(dividido.size() == 2){
                  //si tiene dos pedazos sacamos clave y valor y lo agregamos al mapa
-                 /*QString clave = dividido[0].trimmed();
+                 //QString clave = dividido[0].trimmed();
                  QString valor = dividido[1].trimmed();
-                 resultado[clave] =  valor;*/
+                 resultado[clave] =  valor;
                  QString clave = dividido[0].trimmed().toLower();
                  QString valor = dividido[1].trimmed().toLower();
                  resultado[clave] = valor;
@@ -415,6 +543,68 @@ bool MainWindow::eventFilter(QObject *obj, QEvent *event)
      return resultado;
  }
 
+*/
 
+map<QString, QString> MainWindow::extraerParametros(QString linea)
+{
+    map<QString, QString> resultado;
 
+    linea.replace("–", "-");
+    linea.replace("—", "-");
 
+    // Procesar manualmente respetando comillas
+    QString parametroActual;
+    bool dentroComillas = false;
+
+    for (int i = 0; i < linea.length(); i++)
+    {
+        QChar c = linea[i];
+
+        if (c == '"')
+        {
+            dentroComillas = !dentroComillas;
+        }
+        else if (c == ' ' && !dentroComillas)
+        {
+            if (!parametroActual.isEmpty())
+            {
+                procesarParametro(parametroActual, resultado);
+                parametroActual.clear();
+            }
+        }
+        else
+        {
+            parametroActual += c;
+        }
+    }
+
+    // Procesar el último parámetro
+    if (!parametroActual.isEmpty())
+    {
+        procesarParametro(parametroActual, resultado);
+    }
+
+    return resultado;
+}
+
+void MainWindow::procesarParametro(QString parametro, map<QString, QString> &resultado)
+{
+    if (parametro.startsWith("-"))
+    {
+        QStringList dividido = parametro.split("=");
+        if (dividido.size() == 2)
+        {
+            QString clave = dividido[0].trimmed().toLower();
+            //QString valor = dividido[1].trimmed().toLower();
+            QString valor = dividido[1].trimmed();
+
+            // Quitar comillas si existen
+            if (valor.startsWith("\"") && valor.endsWith("\""))
+            {
+                valor = valor.mid(1, valor.length() - 2);
+            }
+
+            resultado[clave] = valor;
+        }
+    }
+}

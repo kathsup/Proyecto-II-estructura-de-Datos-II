@@ -25,7 +25,16 @@ bool DiskManager:: crearDisco(int size, QString unit, QString path, QString fit)
     MBR mbr;
     mbr.tamanio_disco = tamanio_bytes;
     mbr.num_particiones = 0;
-    mbr.fit_disco = fit.toLower().toStdString()[0];
+    //mbr.fit_disco = fit.toLower().toStdString()[0];
+
+    QString fitNormalizado = fit.toLower();
+    if(fitNormalizado == "bf") {
+        mbr.fit_disco = 'B';
+    } else if(fitNormalizado == "ff") {
+        mbr.fit_disco = 'F';
+    } else { // wf
+        mbr.fit_disco = 'W';
+    }
 
     // Inicializar particiones vacías
     for(int i = 0; i < 4; i++){
@@ -95,15 +104,21 @@ bool DiskManager::crearArchivoVacio(QString path, long long tamanio_bytes){
 bool DiskManager::eliminarDisco(QString path){
 
     QFile archivo(path);
-    QFile archivoRaid(path+"_Raid");
+    //QFile archivoRaid(path+"_Raid");
 
-    if(!archivo.exists()){
+    /*if(!archivo.exists()){
         return false;
     }else{
         archivo.remove();
         archivoRaid.remove();
         return true;
+    }*/
+
+    if(!archivo.exists()){
+        return false;
     }
+
+    return archivo.remove();
 
 
 }
@@ -151,28 +166,59 @@ bool DiskManager::fdisk(map<QString, QString> parametros){
     QString path = parametros["-path"];
     QString name = parametros["-name"];
 
+
+    QFile archivo(path);
+    if(!archivo.exists()){
+        qDebug() << "El disco no existe en la ruta especificada";
+        return false;
+    }
+
     //leer el mbr
     MBR mbr = leerMBR(path);
 
 
     if (!parametros["-delete"].isEmpty()) {
         // ELIMINAR
+        QString deleteType = parametros["-delete"].toLower();
+        if(deleteType != "fast" && deleteType != "full"){
+            qDebug() << "Error: -delete debe ser Fast o Full";
+            return false;
+        }
+
+        if(!eliminarParticion(mbr, name, deleteType)){
+            return false;
+        }
     }
     else if (!parametros["-add"].isEmpty()) {
-        //MODIFICAR TAM
+        // MODIFICAR
+        if(!modificarTamanioParticion(mbr, parametros)){
+            return false;
+        }
     }
     else if (!parametros["-size"].isEmpty()) {
+        // CREAR
         if(!crearParticion(mbr, parametros)){
             return false;
         }
     }
     else {
-        qDebug() << "Error: Debe especificar -size, -delete o -add";
+        qDebug() << "Debe especificar -size, -delete o -add";
         return false;
     }
 
+
     // guardar cambiso
-    return guardarMBR(path, mbr);
+    if(!guardarMBR(path, mbr)){
+        qDebug() << "Error: No se pudieron guardar los cambios";
+        return false;
+    }
+
+    QString pathRaid = path + "_Raid";
+    if(QFile(pathRaid).exists()){
+        guardarMBR(pathRaid, mbr);
+    }
+
+    return true;
 }
 
 
@@ -343,7 +389,16 @@ bool DiskManager::crearParticion(MBR &mbr, map<QString, QString> parametros){
     nueva.inicio = posicion_inicio;
     nueva.tipo = tipo_char == 'p' ? 'P' : (tipo_char == 'e' ? 'E' : 'L');
     nueva.estado = 'U'; // Usada
-    nueva.fit = fit.toLower().toStdString()[0];
+    //nueva.fit = fit.toLower().toStdString()[0];
+
+    QString fitNormalizado = fit.toLower();
+    if(fitNormalizado == "bf") {
+        nueva.fit = 'B';
+    } else if(fitNormalizado == "ff") {
+        nueva.fit = 'F';
+    } else { // wf
+        nueva.fit = 'W';
+    }
 
     // guardar en el MBR
     mbr.particiones[mbr.num_particiones] = nueva;
@@ -354,4 +409,331 @@ bool DiskManager::crearParticion(MBR &mbr, map<QString, QString> parametros){
 }
 
 
+//eliminar
+bool DiskManager::eliminarParticion(MBR &mbr, QString name, QString deleteType){
+    int indice_eliminar = -1;
 
+    // buscar la partición por nombre
+    for(int i = 0; i < mbr.num_particiones; i++){
+        if(QString(mbr.particiones[i].nombre) == name && mbr.particiones[i].estado == 'U'){
+            indice_eliminar = i;
+            break;
+        }
+    }
+
+    if(indice_eliminar == -1){
+        qDebug() << "Error: No existe una partición con ese nombre";
+        return false;
+    }
+
+    Particion particion_eliminar = mbr.particiones[indice_eliminar];
+
+    // Si es extendida se eliminan todas las logicas dentro
+    if(particion_eliminar.tipo == 'E'){
+        qDebug() << "Eliminando partición extendida y sus particiones lógicas";
+
+        // Marcar todas las logicas como libres
+        for(int i = 0; i < mbr.num_particiones; i++){
+            if(mbr.particiones[i].tipo == 'L' && mbr.particiones[i].estado == 'U'){
+                mbr.particiones[i].estado = 'L';
+                strcpy(mbr.particiones[i].nombre, "");
+                mbr.particiones[i].tamanio = 0;
+                mbr.particiones[i].inicio = 0;
+            }
+        }
+    }
+
+    // Marcar la particion como libre
+    mbr.particiones[indice_eliminar].estado = 'L';
+    strcpy(mbr.particiones[indice_eliminar].nombre, "");
+    mbr.particiones[indice_eliminar].tamanio = 0;
+    mbr.particiones[indice_eliminar].inicio = 0;
+
+
+    // Reorganizar el array de particiones
+    int escritura = 0;
+    for(int lectura = 0; lectura < 4; lectura++){
+        if(mbr.particiones[lectura].estado == 'U'){
+            if(escritura != lectura){
+                mbr.particiones[escritura] = mbr.particiones[lectura];
+            }
+            escritura++;
+        }
+    }
+
+    // Limpiar las posiciones sobrantes
+    for(int i = escritura; i < 4; i++){
+        mbr.particiones[i].estado = 'L';
+        strcpy(mbr.particiones[i].nombre, "");
+        mbr.particiones[i].tamanio = 0;
+        mbr.particiones[i].inicio = 0;
+    }
+
+    mbr.num_particiones = escritura;
+
+    qDebug() << "Partición eliminada exitosamente";
+    return true;
+}
+
+// modificar
+bool DiskManager::modificarTamanioParticion(MBR &mbr, map<QString, QString> parametros){
+    QString name = parametros["-name"];
+    int add = parametros["-add"].toInt();
+    QString unit = parametros["-unit"].isEmpty() ? "k" : parametros["-unit"];
+
+    // Convertir el tamaño a bytes
+    long long bytes_modificar = add;
+    if(unit.toLower() == "m"){
+        bytes_modificar = add * 1024 * 1024;
+    }else if(unit.toLower() == "k"){
+        bytes_modificar = add * 1024;
+    }
+
+    // Buscar la partición
+    int indice = -1;
+    for(int i = 0; i < mbr.num_particiones; i++){
+        if(QString(mbr.particiones[i].nombre) == name && mbr.particiones[i].estado == 'U'){
+            indice = i;
+            break;
+        }
+    }
+
+    if(indice == -1){
+        qDebug() << "Error: No existe una partición con ese nombre";
+        return false;
+    }
+
+    Particion &particion = mbr.particiones[indice];
+
+    // CASO 1: AGREGAR espacio (add positivo)
+    if(bytes_modificar > 0){
+        // Encontrar el final de esta partición
+        long long fin_particion = particion.inicio + particion.tamanio;
+
+        // Buscar la siguiente partición
+        long long inicio_siguiente = mbr.tamanio_disco; // Por defecto es el fin del disco
+
+        for(int i = 0; i < mbr.num_particiones; i++){
+            if(mbr.particiones[i].estado == 'U' &&
+                mbr.particiones[i].inicio > fin_particion &&
+                mbr.particiones[i].inicio < inicio_siguiente){
+                inicio_siguiente = mbr.particiones[i].inicio;
+            }
+        }
+
+        long long espacio_disponible = inicio_siguiente - fin_particion;
+
+        if(bytes_modificar > espacio_disponible){
+            qDebug() << "Error: No hay suficiente espacio libre después de la partición";
+            qDebug() << "Espacio disponible:" << espacio_disponible << "bytes";
+            qDebug() << "Espacio solicitado:" << bytes_modificar << "bytes";
+            return false;
+        }
+
+        particion.tamanio += bytes_modificar;
+        qDebug() << "Se agregaron" << bytes_modificar << "bytes a la partición";
+    }
+    // CASO 2: quitar espacio (add negativo)
+    else if(bytes_modificar < 0){
+        long long bytes_quitar = -bytes_modificar; // Convertir a positivo
+
+        if(bytes_quitar >= particion.tamanio){
+            qDebug() << "Error: No se puede quitar más espacio del que tiene la partición";
+            qDebug() << "Tamaño actual:" << particion.tamanio << "bytes";
+            qDebug() << "Intentando quitar:" << bytes_quitar << "bytes";
+            return false;
+        }
+
+        particion.tamanio -= bytes_quitar;
+        qDebug() << "Se quitaron" << bytes_quitar << "bytes de la partición";
+    }
+    else{
+        qDebug() << "Error: El parámetro -add debe ser diferente de 0";
+        return false;
+    }
+
+    qDebug() << "Partición modificada exitosamente. Nuevo tamaño:" << particion.tamanio << "bytes";
+    return true;
+}
+
+
+bool DiskManager::mount(QString path, QString name) {
+    QFile archivo(path);
+    if(!archivo.exists()) {
+        qDebug() << "Error: El disco no existe";
+        return false;
+    }
+
+    MBR mbr = leerMBR(path);
+
+    // revsar que la partición exista en el mbr
+    bool encontrada = false;
+    for(int i = 0; i < mbr.num_particiones; i++) {
+        if(QString(mbr.particiones[i].nombre) == name &&
+            mbr.particiones[i].estado == 'U') {
+            encontrada = true;
+            break;
+        }
+    }
+
+    if(!encontrada) {
+        qDebug() << "Error: La partición no existe en el disco";
+        return false;
+    }
+
+    // ver que no este mount ya
+    if(estaMontada(path, name)) {
+        qDebug() << "Error: La partición ya está montada";
+        return false;
+    }
+
+    // hacer id
+    QString id = generarID(path);
+
+    //guardar en la lista de montajes
+    ParticionMontada montaje;
+    strcpy(montaje.id, id.toStdString().c_str());
+    strcpy(montaje.path_disco, path.toStdString().c_str());
+    strcpy(montaje.nombre_particion, name.toStdString().c_str());
+    montaje.letra = id[2].toLatin1();  // Extraer la letra de "vda1"
+    montaje.numero = id.mid(3).toInt(); // Extraer el número
+
+    particiones_montadas.append(montaje);
+
+    qDebug() << "Partición montada con ID:" << id;
+    return true;
+}
+
+/*QString DiskManager::generarID(QString path) {
+    char letra = 'a';
+    int numero = 1;
+
+    // Buscar si este DISCO ya tiene montajes
+    for(const ParticionMontada& montaje : particiones_montadas) {
+        if(QString(montaje.path_disco) == path) {
+            // ¡Este disco ya está montado! Usar su letra
+            letra = montaje.letra;
+            numero = montaje.numero + 1;  // Siguiente número
+            break;
+        }
+    }
+
+    // Si no encontró el disco, buscar la siguiente letra libre
+    if(letra == 'a' && particiones_montadas.size() > 0) {
+        // Encontrar la letra más alta usada
+        char letra_max = 'a';
+        for(const ParticionMontada& montaje : particiones_montadas) {
+            if(montaje.letra > letra_max) {
+                letra_max = montaje.letra;
+            }
+        }
+        letra = letra_max + 1;  // Siguiente letra
+    }
+
+    return QString("vd") + QString(letra) + QString::number(numero);
+}*/
+
+QString DiskManager::generarID(QString path) {
+    char letra = 'a';
+
+    // PASO 1: Buscar si este DISCO ya tiene montajes para obtener su letra
+    bool discoEncontrado = false;
+    for(const ParticionMontada& montaje : particiones_montadas) {
+        if(QString(montaje.path_disco) == path) {
+            letra = montaje.letra;
+            discoEncontrado = true;
+            break;
+        }
+    }
+
+    // PASO 2: Si es un disco nuevo, asignar una letra libre
+    if(!discoEncontrado && particiones_montadas.size() > 0) {
+        QSet<char> letrasUsadas;
+        for(const ParticionMontada& montaje : particiones_montadas) {
+            letrasUsadas.insert(montaje.letra);
+        }
+
+        letra = 'a';
+        while(letrasUsadas.contains(letra)) {
+            letra++;
+        }
+    }
+
+    // PASO 3: Buscar el PRIMER número disponible para esta letra
+    QSet<int> numerosUsados;
+    for(const ParticionMontada& montaje : particiones_montadas) {
+        if(montaje.letra == letra) {
+            numerosUsados.insert(montaje.numero);
+        }
+    }
+
+    int numero = 1;
+    while(numerosUsados.contains(numero)) {
+        numero++;
+    }
+
+    return QString("vd") + QString(letra) + QString::number(numero);
+}
+
+bool DiskManager::estaMontada(QString path, QString name) {
+    // Recorrer todas las particiones montadas
+    for(const ParticionMontada& montaje : particiones_montadas) {
+        // Comparar si coinciden AMBOS: disco Y nombre de partición
+        if(QString(montaje.path_disco) == path &&
+            QString(montaje.nombre_particion) == name) {
+            return true;  // ¡Ya está montada!
+        }
+    }
+
+    return false;  // No está montada
+}
+
+bool DiskManager::unmount(QString id) {
+    // Buscar el montaje con ese ID
+    for(int i = 0; i < particiones_montadas.size(); i++) {
+        if(QString(particiones_montadas[i].id) == id) {
+            // ¡Encontrado! Eliminarlo de la lista
+            particiones_montadas.removeAt(i);
+            qDebug() << "Partición desmontada:" << id;
+            return true;
+        }
+    }
+
+    // No se encontró el ID
+    qDebug() << "Error: No existe una partición montada con ese ID";
+    return false;
+}
+
+QString DiskManager::obtenerTablaParticionesMontadas() {
+    QString tabla = "";
+
+    // Línea superior
+    tabla += "    ┌────────────────────────────────────────┐\n";
+    tabla += "    │            Particiones montadas        │\n";
+    tabla += "    ├──────────────────┬─────────────────────┤\n";
+    tabla += "    │     Nombre       │         ID          │\n";
+    tabla += "    ├──────────────────┼─────────────────────┤\n";
+
+    // Contenido de particiones
+    for(const ParticionMontada& m : particiones_montadas) {
+        QString nombre = QString(m.nombre_particion);
+        QString id = QString(m.id);
+
+        // Centrar el nombre (16 espacios)
+        int espaciosNombre = (16 - nombre.length()) / 2;
+        QString nombreCentrado = QString(" ").repeated(espaciosNombre) + nombre;
+        nombreCentrado = nombreCentrado.leftJustified(16);
+
+        // Centrar el ID (19 espacios)
+        int espaciosId = (19 - id.length()) / 2;
+        QString idCentrado = QString(" ").repeated(espaciosId) + id;
+        idCentrado = idCentrado.leftJustified(19);
+
+        tabla += "    │" + nombreCentrado + " │" + idCentrado + "│\n";
+    }
+
+    // Línea inferior
+    tabla += "    └──────────────────┴─────────────────────┘\n";
+
+    return tabla;
+}

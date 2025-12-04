@@ -33,6 +33,10 @@ private:
     //metodo para parsear: sirve para dividir el comando que ponga
     map<QString, QString> extraerParametros(QString Linea);
     QString pendingDiskToDelete;
+    void procesarParametro(QString parametro, map<QString, QString> &resultado);
+
+
+    map<QString, QString> pendingPartitionDelete;
 };
 
 #endif // MAINWINDOW_H

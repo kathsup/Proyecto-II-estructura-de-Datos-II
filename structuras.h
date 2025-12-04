@@ -19,5 +19,13 @@ struct MBR {
     char fit_disco;
 };
 
+struct ParticionMontada {
+    char id[10];
+    char path_disco[200];
+    char nombre_particion[50];
+    char letra;
+    int numero;
+};
+
 
 #endif // STRUCTURAS_H
