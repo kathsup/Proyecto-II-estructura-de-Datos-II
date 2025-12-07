@@ -13,6 +13,7 @@ qt_add_executable(proyectoDos-estruII
     mainwindow.ui
     diskmanager.h diskmanager.cpp
     structuras.h
+    diagramawidget.h diagramawidget.cpp
 )
 
 target_link_libraries(proyectoDos-estruII

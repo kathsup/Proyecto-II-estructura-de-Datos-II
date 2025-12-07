@@ -392,7 +392,47 @@ void MainWindow::processCommand(const QString &cmd)
         header += currentPath + ">> ";
         ui->base->setPlainText(header);
         return;
-    }else {
+    }
+    /*else if (command == "rep") {
+        map<QString, QString> parametros = extraerParametros(trimmedCmd);
+
+        if (parametros["-path"].isEmpty()) {
+            ui->base->appendPlainText("Error: -path es obligatorio");
+            ui->base->appendPlainText(currentPath + ">> ");
+            return;
+        }
+
+        QString path = parametros["-path"];
+
+        ui->base->appendPlainText("\n═══════════════════ REPORTE DE DISCO ═══════════════════\n");
+        diskManager->mostrarReporteEnConsola(path, ui->base);
+        ui->base->appendPlainText("\n════════════════════════════════════════════════════════\n");
+    }*/
+    else if (command == "rep") {
+        map<QString, QString> parametros = extraerParametros(trimmedCmd);
+
+        if (parametros["-path"].isEmpty()) {
+            ui->base->appendPlainText("Error: -path es obligatorio");
+            ui->base->appendPlainText(currentPath + ">> ");
+            return;
+        }
+
+        QString path = parametros["-path"];
+
+        QFile archivo(path);
+        if(!archivo.exists()) {
+            ui->base->appendPlainText("Error: El disco no existe en la ruta especificada");
+            ui->base->appendPlainText(currentPath + ">> ");
+            return;
+        }
+
+        ui->base->appendPlainText("\n╔═══════════════════════════════════════════════════════════════════════════╗");
+        ui->base->appendPlainText("║                         REPORTE DE DISCO (MBR)                            ║");
+        ui->base->appendPlainText("╚═══════════════════════════════════════════════════════════════════════════╝\n");
+
+        diskManager->mostrarReporteEnConsola(path, ui->base);
+    }
+    else {
         ui->base->appendPlainText("'" + command + "' no es reconocido como un comando interno o externo.");
     }
 

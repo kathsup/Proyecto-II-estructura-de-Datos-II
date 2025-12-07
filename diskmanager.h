@@ -5,6 +5,8 @@
 #include "structuras.h"
 #include <map>
 #include <QVector>
+#include "diagramawidget.h"
+#include <QPlainTextEdit>
 
 using namespace std;
 
@@ -25,6 +27,7 @@ public:
     bool estaMontada(QString path, QString name);
     bool unmount(QString id);
     QString obtenerTablaParticionesMontadas();
+    void mostrarReporteEnConsola(QString path, QPlainTextEdit *consola);
 
 private:
     bool crearParticion(MBR &mbr, map<QString, QString> parametros);

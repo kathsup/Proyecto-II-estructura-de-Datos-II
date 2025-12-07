@@ -1,6 +1,11 @@
 #include "diskmanager.h"
 #include <QDir>
 #include <QFile>
+#include <QTextCursor>
+#include <QScrollArea>
+#include <QTextBlock>
+#include <QTextLayout>
+#include <QAbstractTextDocumentLayout>
 
 DiskManager::DiskManager() {}
 
@@ -104,15 +109,7 @@ bool DiskManager::crearArchivoVacio(QString path, long long tamanio_bytes){
 bool DiskManager::eliminarDisco(QString path){
 
     QFile archivo(path);
-    //QFile archivoRaid(path+"_Raid");
 
-    /*if(!archivo.exists()){
-        return false;
-    }else{
-        archivo.remove();
-        archivoRaid.remove();
-        return true;
-    }*/
 
     if(!archivo.exists()){
         return false;
@@ -604,34 +601,6 @@ bool DiskManager::mount(QString path, QString name) {
     return true;
 }
 
-/*QString DiskManager::generarID(QString path) {
-    char letra = 'a';
-    int numero = 1;
-
-    // Buscar si este DISCO ya tiene montajes
-    for(const ParticionMontada& montaje : particiones_montadas) {
-        if(QString(montaje.path_disco) == path) {
-            // ¡Este disco ya está montado! Usar su letra
-            letra = montaje.letra;
-            numero = montaje.numero + 1;  // Siguiente número
-            break;
-        }
-    }
-
-    // Si no encontró el disco, buscar la siguiente letra libre
-    if(letra == 'a' && particiones_montadas.size() > 0) {
-        // Encontrar la letra más alta usada
-        char letra_max = 'a';
-        for(const ParticionMontada& montaje : particiones_montadas) {
-            if(montaje.letra > letra_max) {
-                letra_max = montaje.letra;
-            }
-        }
-        letra = letra_max + 1;  // Siguiente letra
-    }
-
-    return QString("vd") + QString(letra) + QString::number(numero);
-}*/
 
 QString DiskManager::generarID(QString path) {
     char letra = 'a';
@@ -719,21 +688,84 @@ QString DiskManager::obtenerTablaParticionesMontadas() {
         QString nombre = QString(m.nombre_particion);
         QString id = QString(m.id);
 
-        // Centrar el nombre (16 espacios)
+        // Centrar el nombre
         int espaciosNombre = (16 - nombre.length()) / 2;
         QString nombreCentrado = QString(" ").repeated(espaciosNombre) + nombre;
         nombreCentrado = nombreCentrado.leftJustified(16);
 
-        // Centrar el ID (19 espacios)
+        // Centrar el ID
         int espaciosId = (19 - id.length()) / 2;
         QString idCentrado = QString(" ").repeated(espaciosId) + id;
         idCentrado = idCentrado.leftJustified(19);
 
-        tabla += "    │" + nombreCentrado + " │" + idCentrado + "│\n";
+        tabla += "    │" + nombreCentrado + "  │" + idCentrado + "  │\n";
     }
 
     // Línea inferior
     tabla += "    └──────────────────┴─────────────────────┘\n";
 
     return tabla;
+}
+
+
+/*void DiskManager::mostrarReporteEnConsola(QString path, QPlainTextEdit *consola)
+{
+    QFile archivo(path);
+    if(!archivo.exists()) {
+        consola->appendPlainText("Error: El disco no existe");
+        return;
+    }
+
+    MBR mbr = leerMBR(path);
+
+    // Crear el widget del diagrama
+    DiagramaWidget *diagrama = new DiagramaWidget(mbr, consola);
+    diagrama->setFixedSize(975, 140);  // Ancho fijo
+
+    // Calcular posición
+    QFontMetrics fm(consola->font());
+    int lineHeight = fm.lineSpacing();
+    int numLineas = consola->document()->lineCount();
+    int posY = (numLineas * lineHeight) + 5;
+
+    // Centrar horizontalmente
+    int posX = (consola->width() - 1100) / 2;
+    if(posX < 10) posX = 10;
+
+    diagrama->move(posX, posY);
+    diagrama->show();
+
+    // Reservar espacio
+    consola->appendPlainText("\n\n\n\n\n\n\n\n");
+}*/
+
+void DiskManager::mostrarReporteEnConsola(QString path, QPlainTextEdit *consola)
+{
+    QFile archivo(path);
+    if(!archivo.exists()) {
+        consola->appendPlainText("Error: El disco no existe");
+        return;
+    }
+
+    MBR mbr = leerMBR(path);
+
+    // Crear el widget del diagrama
+    DiagramaWidget *diagrama = new DiagramaWidget(mbr, consola);
+    diagrama->setFixedSize(975, 140);
+
+    // Calcular posición
+    QFontMetrics fm(consola->font());
+    int lineHeight = fm.lineSpacing();
+    int numLineas = consola->document()->lineCount();
+    int posY = (numLineas * lineHeight) + 5;
+
+    // Centrar horizontalmente
+    int posX = (consola->width() - 1100) / 2;
+    if(posX < 10) posX = 10;
+
+    diagrama->move(posX, posY);
+    diagrama->show();
+
+    // Reservar espacio
+    consola->appendPlainText("\n\n\n\n\n\n\n\n");
 }
