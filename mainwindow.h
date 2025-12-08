@@ -4,6 +4,7 @@
 #include <QMainWindow>
 #include <QMap>
 #include "diskmanager.h"
+#include <QTextEdit>
 
 using namespace std;
 

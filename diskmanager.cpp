@@ -6,6 +6,11 @@
 #include <QTextBlock>
 #include <QTextLayout>
 #include <QAbstractTextDocumentLayout>
+#include <QTextImageFormat>
+#include <QDateTime>
+#include <QBuffer>
+#include <QScrollBar>
+#include <QRandomGenerator>
 
 DiskManager::DiskManager() {}
 
@@ -296,14 +301,14 @@ bool DiskManager::crearParticion(MBR &mbr, map<QString, QString> parametros){
     int inicio_disponible = sizeof(MBR); // Empieza después del MBR
 
     // Ordenar particiones por inicio para encontrar huecos
-    Particion particiones_ordenadas[4];
-    for(int i = 0; i < 4; i++){
+    Particion particiones_ordenadas[20];
+    for(int i = 0; i < 20; i++){
         particiones_ordenadas[i] = mbr.particiones[i];
     }
 
     // Ordenamiento burbuja
-    for(int i = 0; i < 3; i++){
-        for(int j = 0; j < 3 - i; j++){
+    for(int i = 0; i < 19; i++){
+        for(int j = 0; j < 19 - i; j++){
             if(particiones_ordenadas[j].inicio > particiones_ordenadas[j+1].inicio
                 && particiones_ordenadas[j+1].estado == 'U'){
                 Particion temp = particiones_ordenadas[j];
@@ -318,14 +323,14 @@ bool DiskManager::crearParticion(MBR &mbr, map<QString, QString> parametros){
 
     if(tipo_char == 'l'){
         // busco dentro de la extendida
-        for(int i = 0; i < 4; i++){
+        for(int i = 0; i < 20; i++){
             if(particiones_ordenadas[i].tipo == 'E' && particiones_ordenadas[i].estado == 'U'){
                 int inicio_ext = particiones_ordenadas[i].inicio;
                 int fin_ext = inicio_ext + particiones_ordenadas[i].tamanio;
 
                 // Buscar hueco dentro de la extendida
                 int inicio_logica = inicio_ext;
-                for(int j = 0; j < 4; j++){
+                for(int j = 0; j < 20; j++){
                     if(particiones_ordenadas[j].tipo == 'L' && particiones_ordenadas[j].estado == 'U'){
                         if(particiones_ordenadas[j].inicio >= inicio_ext &&
                             particiones_ordenadas[j].inicio < fin_ext){
@@ -350,7 +355,7 @@ bool DiskManager::crearParticion(MBR &mbr, map<QString, QString> parametros){
         // si es primaria o secundaria buscar en todo el disco
         inicio_disponible = sizeof(MBR);
 
-        for(int i = 0; i < 4; i++){
+        for(int i = 0; i < 20; i++){
             if(particiones_ordenadas[i].estado == 'U' &&
                 (particiones_ordenadas[i].tipo == 'P' || particiones_ordenadas[i].tipo == 'E')){
 
@@ -708,37 +713,6 @@ QString DiskManager::obtenerTablaParticionesMontadas() {
 }
 
 
-/*void DiskManager::mostrarReporteEnConsola(QString path, QPlainTextEdit *consola)
-{
-    QFile archivo(path);
-    if(!archivo.exists()) {
-        consola->appendPlainText("Error: El disco no existe");
-        return;
-    }
-
-    MBR mbr = leerMBR(path);
-
-    // Crear el widget del diagrama
-    DiagramaWidget *diagrama = new DiagramaWidget(mbr, consola);
-    diagrama->setFixedSize(975, 140);  // Ancho fijo
-
-    // Calcular posición
-    QFontMetrics fm(consola->font());
-    int lineHeight = fm.lineSpacing();
-    int numLineas = consola->document()->lineCount();
-    int posY = (numLineas * lineHeight) + 5;
-
-    // Centrar horizontalmente
-    int posX = (consola->width() - 1100) / 2;
-    if(posX < 10) posX = 10;
-
-    diagrama->move(posX, posY);
-    diagrama->show();
-
-    // Reservar espacio
-    consola->appendPlainText("\n\n\n\n\n\n\n\n");
-}*/
-
 void DiskManager::mostrarReporteEnConsola(QString path, QPlainTextEdit *consola)
 {
     QFile archivo(path);
@@ -768,4 +742,93 @@ void DiskManager::mostrarReporteEnConsola(QString path, QPlainTextEdit *consola)
 
     // Reservar espacio
     consola->appendPlainText("\n\n\n\n\n\n\n\n");
+}
+
+
+
+
+
+void DiskManager::guardarImagenDisco(MBR mbr, QString pathDestino)
+{
+    // Crear el directorio si no existe
+    crearCarpeta(pathDestino);
+
+    // Usar DiagramaWidget para generar la imagen
+    DiagramaWidget *temp = new DiagramaWidget(mbr, nullptr);
+    QPixmap imagen = temp->crearImagenDiagrama(mbr);
+
+    // Guardar la imagen
+    if(imagen.save(pathDestino)) {
+        qDebug() << "Imagen guardada exitosamente en:" << pathDestino;
+    } else {
+        qDebug() << "Error al guardar la imagen";
+    }
+
+    delete temp;
+}
+
+bool DiskManager::generarReporteDisco(map<QString, QString> parametros, QPlainTextEdit *consola)
+{
+    QString pathDisco;
+    QString pathDestino = parametros["-path"]; // Donde se guarda la imagen
+    QString name = parametros["-name"];
+
+    // VALIDAR que sea reporte de disco/mbr
+    if(name.toLower() != "disk" && name.toLower() != "mbr") {
+        consola->appendPlainText("Error: Este comando solo soporta -name=disk o -name=mbr");
+        return false;
+    }
+
+    // CASO 1: Usar -id (partición montada)
+    if(!parametros["-id"].isEmpty()) {
+        QString id = parametros["-id"];
+
+        // Buscar en particiones montadas
+        bool encontrado = false;
+        for(const ParticionMontada& montaje : particiones_montadas) {
+            if(QString(montaje.id) == id) {
+                pathDisco = QString(montaje.path_disco);
+                encontrado = true;
+                break;
+            }
+        }
+
+        if(!encontrado) {
+            consola->appendPlainText("Error: No existe una partición montada con ese ID");
+            return false;
+        }
+    }
+    // CASO 2: Usar -path_disco (path directo al disco)
+    else if(!parametros["-path_disco"].isEmpty()) {
+        pathDisco = parametros["-path_disco"];
+    }
+    else {
+        consola->appendPlainText("Error: Debe especificar -id o -path_disco");
+        return false;
+    }
+
+    // Verificar que el disco existe
+    QFile archivo(pathDisco);
+    if(!archivo.exists()) {
+        consola->appendPlainText("Error: El disco no existe en la ruta: " + pathDisco);
+        return false;
+    }
+
+    // Leer el MBR
+    MBR mbr = leerMBR(pathDisco);
+
+    // MOSTRAR en consola
+    consola->appendPlainText("\n╔═══════════════════════════════════════════════════════════════════════════╗");
+    consola->appendPlainText("║                         REPORTE DE DISCO (MBR)                            ║");
+    consola->appendPlainText("╚═══════════════════════════════════════════════════════════════════════════╝\n");
+
+    mostrarReporteEnConsola(pathDisco, consola);
+
+    // GUARDAR como imagen
+    guardarImagenDisco(mbr, pathDestino);
+
+    consola->appendPlainText("\nReporte generado con éxito");
+    consola->appendPlainText("Imagen guardada en: " + pathDestino);
+
+    return true;
 }

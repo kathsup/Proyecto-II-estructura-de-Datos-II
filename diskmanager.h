@@ -7,6 +7,8 @@
 #include <QVector>
 #include "diagramawidget.h"
 #include <QPlainTextEdit>
+#include <QTextEdit>
+#include<QLabel>
 
 using namespace std;
 
@@ -28,12 +30,15 @@ public:
     bool unmount(QString id);
     QString obtenerTablaParticionesMontadas();
     void mostrarReporteEnConsola(QString path, QPlainTextEdit *consola);
+    bool generarReporteDisco(map<QString, QString> parametros, QPlainTextEdit *consola);
+    void guardarImagenDisco(MBR mbr, QString pathDestino);
 
 private:
     bool crearParticion(MBR &mbr, map<QString, QString> parametros);
     bool eliminarParticion(MBR &mbr, QString name, QString deleteType);
     bool modificarTamanioParticion(MBR &mbr, map<QString, QString> parametros);
     QVector<ParticionMontada> particiones_montadas;
+
 
 };
 

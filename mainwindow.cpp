@@ -393,48 +393,39 @@ void MainWindow::processCommand(const QString &cmd)
         ui->base->setPlainText(header);
         return;
     }
-    /*else if (command == "rep") {
-        map<QString, QString> parametros = extraerParametros(trimmedCmd);
-
-        if (parametros["-path"].isEmpty()) {
-            ui->base->appendPlainText("Error: -path es obligatorio");
-            ui->base->appendPlainText(currentPath + ">> ");
-            return;
-        }
-
-        QString path = parametros["-path"];
-
-        ui->base->appendPlainText("\n═══════════════════ REPORTE DE DISCO ═══════════════════\n");
-        diskManager->mostrarReporteEnConsola(path, ui->base);
-        ui->base->appendPlainText("\n════════════════════════════════════════════════════════\n");
-    }*/
     else if (command == "rep") {
         map<QString, QString> parametros = extraerParametros(trimmedCmd);
 
+        // Validar parámetros obligatorios
+        if (parametros["-name"].isEmpty()) {
+            ui->base->appendPlainText("Error: -name es obligatorio");
+            ui->base->appendPlainText(currentPath + ">> ");
+            return;
+        }
+
         if (parametros["-path"].isEmpty()) {
-            ui->base->appendPlainText("Error: -path es obligatorio");
+            ui->base->appendPlainText("Error: -path es obligatorio (ruta donde guardar la imagen)");
             ui->base->appendPlainText(currentPath + ">> ");
             return;
         }
 
-        QString path = parametros["-path"];
-
-        QFile archivo(path);
-        if(!archivo.exists()) {
-            ui->base->appendPlainText("Error: El disco no existe en la ruta especificada");
+        // Verificar que se proporcione ID o path_disco
+        if (parametros["-id"].isEmpty() && parametros["-path_disco"].isEmpty()) {
+            ui->base->appendPlainText("Error: Debe especificar -id o -path_disco");
             ui->base->appendPlainText(currentPath + ">> ");
             return;
         }
 
-        ui->base->appendPlainText("\n╔═══════════════════════════════════════════════════════════════════════════╗");
-        ui->base->appendPlainText("║                         REPORTE DE DISCO (MBR)                            ║");
-        ui->base->appendPlainText("╚═══════════════════════════════════════════════════════════════════════════╝\n");
+        // Generar el reporte
+        diskManager->generarReporteDisco(parametros, ui->base);
 
-        diskManager->mostrarReporteEnConsola(path, ui->base);
+        ui->base->appendPlainText(currentPath + ">> ");
     }
     else {
         ui->base->appendPlainText("'" + command + "' no es reconocido como un comando interno o externo.");
     }
+
+
 
     ui->base->appendPlainText(currentPath + "> ");
 }
@@ -550,40 +541,7 @@ bool MainWindow::eventFilter(QObject *obj, QEvent *event)
     return QMainWindow::eventFilter(obj, event);
 }
 
-/*map<QString, QString> MainWindow:: extraerParametros(QString linea){
-     map <QString, QString> resultado; //guardaremos lo de las parejas
 
-     linea.replace("–", "-");
-     linea.replace("—", "-");
-
-     QStringList partes = linea.split(" "); //separamos por espacios
-
-
-
-     //como nos devuelven un tipo de "arreglo" lo vamos a recorrer con un for para guardar los resultados
-     //sintaxis for each tipo de dato nombre var: arreglo
-     for(QString parte : partes){
-          parte = parte.trimmed();
-         //en cada pedazo revisamos si comienza con - ya que es un parametro
-         if(parte.startsWith("-")){
-             //dividir el parametro en dos para saber categoria y el argumento
-             QStringList dividido = parte.split("=");
-             if(dividido.size() == 2){
-                 //si tiene dos pedazos sacamos clave y valor y lo agregamos al mapa
-                 //QString clave = dividido[0].trimmed();
-                 QString valor = dividido[1].trimmed();
-                 resultado[clave] =  valor;
-                 QString clave = dividido[0].trimmed().toLower();
-                 QString valor = dividido[1].trimmed().toLower();
-                 resultado[clave] = valor;
-
-             }
-         }
-     }
-     return resultado;
- }
-
-*/
 
 map<QString, QString> MainWindow::extraerParametros(QString linea)
 {
