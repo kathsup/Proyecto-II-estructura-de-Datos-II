@@ -15,7 +15,7 @@ struct Particion{
 struct MBR {
     int tamanio_disco;
     int num_particiones;
-    Particion particiones[20];  // Máximo 4
+    Particion particiones[20];
     char fit_disco;
 };
 

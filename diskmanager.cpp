@@ -454,7 +454,7 @@ bool DiskManager::eliminarParticion(MBR &mbr, QString name, QString deleteType){
 
     // Reorganizar el array de particiones
     int escritura = 0;
-    for(int lectura = 0; lectura < 4; lectura++){
+    for(int lectura = 0; lectura < 20; lectura++){
         if(mbr.particiones[lectura].estado == 'U'){
             if(escritura != lectura){
                 mbr.particiones[escritura] = mbr.particiones[lectura];
@@ -464,7 +464,7 @@ bool DiskManager::eliminarParticion(MBR &mbr, QString name, QString deleteType){
     }
 
     // Limpiar las posiciones sobrantes
-    for(int i = escritura; i < 4; i++){
+    for(int i = escritura; i < 20; i++){
         mbr.particiones[i].estado = 'L';
         strcpy(mbr.particiones[i].nombre, "");
         mbr.particiones[i].tamanio = 0;
@@ -493,7 +493,7 @@ bool DiskManager::modificarTamanioParticion(MBR &mbr, map<QString, QString> para
 
     // Buscar la partición
     int indice = -1;
-    for(int i = 0; i < mbr.num_particiones; i++){
+    for(int i = 0; i < 20; i++){
         if(QString(mbr.particiones[i].nombre) == name && mbr.particiones[i].estado == 'U'){
             indice = i;
             break;
@@ -610,7 +610,7 @@ bool DiskManager::mount(QString path, QString name) {
 QString DiskManager::generarID(QString path) {
     char letra = 'a';
 
-    // PASO 1: Buscar si este DISCO ya tiene montajes para obtener su letra
+    // 1 Buscar si este DISCO ya tiene montajes para obtener su letra
     bool discoEncontrado = false;
     for(const ParticionMontada& montaje : particiones_montadas) {
         if(QString(montaje.path_disco) == path) {
@@ -620,7 +620,7 @@ QString DiskManager::generarID(QString path) {
         }
     }
 
-    // PASO 2: Si es un disco nuevo, asignar una letra libre
+    // 2 Si es un disco nuevo, asignar una letra libre
     if(!discoEncontrado && particiones_montadas.size() > 0) {
         QSet<char> letrasUsadas;
         for(const ParticionMontada& montaje : particiones_montadas) {
@@ -633,7 +633,7 @@ QString DiskManager::generarID(QString path) {
         }
     }
 
-    // PASO 3: Buscar el PRIMER número disponible para esta letra
+    // 3 Buscar el PRIMER número disponible para esta letra
     QSet<int> numerosUsados;
     for(const ParticionMontada& montaje : particiones_montadas) {
         if(montaje.letra == letra) {
@@ -652,28 +652,28 @@ QString DiskManager::generarID(QString path) {
 bool DiskManager::estaMontada(QString path, QString name) {
     // Recorrer todas las particiones montadas
     for(const ParticionMontada& montaje : particiones_montadas) {
-        // Comparar si coinciden AMBOS: disco Y nombre de partición
+        // Comparar si coinciden ambos disco Y nombre de partición
         if(QString(montaje.path_disco) == path &&
             QString(montaje.nombre_particion) == name) {
             return true;  // ¡Ya está montada!
         }
     }
 
-    return false;  // No está montada
+    return false;  // No esta montada
 }
 
 bool DiskManager::unmount(QString id) {
     // Buscar el montaje con ese ID
     for(int i = 0; i < particiones_montadas.size(); i++) {
         if(QString(particiones_montadas[i].id) == id) {
-            // ¡Encontrado! Eliminarlo de la lista
+            // si se encuetra se elimina
             particiones_montadas.removeAt(i);
             qDebug() << "Partición desmontada:" << id;
             return true;
         }
     }
 
-    // No se encontró el ID
+    // si no se encuentra
     qDebug() << "Error: No existe una partición montada con ese ID";
     return false;
 }
@@ -693,12 +693,12 @@ QString DiskManager::obtenerTablaParticionesMontadas() {
         QString nombre = QString(m.nombre_particion);
         QString id = QString(m.id);
 
-        // Centrar el nombre
+
         int espaciosNombre = (16 - nombre.length()) / 2;
         QString nombreCentrado = QString(" ").repeated(espaciosNombre) + nombre;
         nombreCentrado = nombreCentrado.leftJustified(16);
 
-        // Centrar el ID
+
         int espaciosId = (19 - id.length()) / 2;
         QString idCentrado = QString(" ").repeated(espaciosId) + id;
         idCentrado = idCentrado.leftJustified(19);
@@ -706,7 +706,7 @@ QString DiskManager::obtenerTablaParticionesMontadas() {
         tabla += "    │" + nombreCentrado + "  │" + idCentrado + "  │\n";
     }
 
-    // Línea inferior
+
     tabla += "    └──────────────────┴─────────────────────┘\n";
 
     return tabla;
@@ -727,13 +727,13 @@ void DiskManager::mostrarReporteEnConsola(QString path, QPlainTextEdit *consola)
     DiagramaWidget *diagrama = new DiagramaWidget(mbr, consola);
     diagrama->setFixedSize(975, 140);
 
-    // Calcular posición
+    // Calcular posición y centrar
     QFontMetrics fm(consola->font());
     int lineHeight = fm.lineSpacing();
     int numLineas = consola->document()->lineCount();
     int posY = (numLineas * lineHeight) + 5;
 
-    // Centrar horizontalmente
+
     int posX = (consola->width() - 1100) / 2;
     if(posX < 10) posX = 10;
 
@@ -750,7 +750,7 @@ void DiskManager::mostrarReporteEnConsola(QString path, QPlainTextEdit *consola)
 
 void DiskManager::guardarImagenDisco(MBR mbr, QString pathDestino)
 {
-    // Crear el directorio si no existe
+
     crearCarpeta(pathDestino);
 
     // Usar DiagramaWidget para generar la imagen
@@ -779,7 +779,7 @@ bool DiskManager::generarReporteDisco(map<QString, QString> parametros, QPlainTe
         return false;
     }
 
-    // CASO 1: Usar -id (partición montada)
+    // se puede usasr id o path
     if(!parametros["-id"].isEmpty()) {
         QString id = parametros["-id"];
 
@@ -798,7 +798,7 @@ bool DiskManager::generarReporteDisco(map<QString, QString> parametros, QPlainTe
             return false;
         }
     }
-    // CASO 2: Usar -path_disco (path directo al disco)
+    // path
     else if(!parametros["-path_disco"].isEmpty()) {
         pathDisco = parametros["-path_disco"];
     }
@@ -814,17 +814,17 @@ bool DiskManager::generarReporteDisco(map<QString, QString> parametros, QPlainTe
         return false;
     }
 
-    // Leer el MBR
+
     MBR mbr = leerMBR(pathDisco);
 
-    // MOSTRAR en consola
+
     consola->appendPlainText("\n╔═══════════════════════════════════════════════════════════════════════════╗");
-    consola->appendPlainText("║                         REPORTE DE DISCO (MBR)                            ║");
+    consola->appendPlainText("║                         REPORTE DE DISCO                                  ║");
     consola->appendPlainText("╚═══════════════════════════════════════════════════════════════════════════╝\n");
 
     mostrarReporteEnConsola(pathDisco, consola);
 
-    // GUARDAR como imagen
+
     guardarImagenDisco(mbr, pathDestino);
 
     consola->appendPlainText("\nReporte generado con éxito");
